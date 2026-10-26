@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+mysql-conector-python
+pandas
+openpyxl
+pypdf
+streamlit
+requests
+python-multipart
+numpy
