@@ -1,5 +1,6 @@
 import requests
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 from inventory_bar_chart import render_horizontal_device_chart
 
@@ -7,51 +8,72 @@ API_BASE_URL = "http://127.0.0.1:8000/api"
 REQUEST_TIMEOUT = 30
 MAX_PDF_SIZE_MB = 20
 
-# Page Configuration with Custom Styling Injection
+# Page Configuration
 st.set_page_config(
     page_title="Mobile Models Manager",
     page_icon="📱",
     layout="wide",
 )
 
-# Custom CSS Injection for a Richer, Sleeker UI
+# Dynamic Theme Detection (Light vs Dark Mode)
+is_dark_theme = False
+try:
+    theme_base = st.get_option("theme.base")
+    if theme_base == "dark":
+        is_dark_theme = True
+except Exception:
+    pass
+
+# Dynamic Color Scheme Variables
+bg_color = "#0F172A" if is_dark_theme else "#F8FAFC"
+card_bg = "#1E293B" if is_dark_theme else "#FFFFFF"
+text_color = "#F8FAFC" if is_dark_theme else "#0F172A"
+subtext_color = "#94A3B8" if is_dark_theme else "#64748B"
+border_color = "#334155" if is_dark_theme else "#E2E8F0"
+inner_box_bg = "#0F172A" if is_dark_theme else "#F8FAFC"
+
+# Custom CSS Injection supporting Light & Dark Mode seamlessly
 st.markdown(
-    """
+    f"""
     <style>
         /* Main Theme & Background */
-        .stApp {
-            background-color: #F8FAFC;
-        }
-        
+        .stApp {{
+            background-color: {bg_color};
+        }}
+
         /* Headers styling */
-        h1, h2, h3 {
+        h1, h2, h3, h4, h5, h6 {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            color: #0F172A;
-        }
+            color: {text_color} !important;
+        }}
+
+        p, span, label {{
+            color: {text_color};
+        }}
 
         /* Card Container styling */
-        .custom-card {
-            background-color: #FFFFFF;
+        .custom-card {{
+            background-color: {card_bg};
             padding: 20px 24px;
             border-radius: 12px;
-            border: 1px solid #E2E8F0;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            border: 1px solid {border_color};
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
             margin-bottom: 16px;
-        }
+        }}
 
         /* Custom buttons styling enhancement */
-        .stButton>button {
+        .stButton>button {{
             border-radius: 8px;
             font-weight: 600;
             padding: 0.5rem 1rem;
             transition: all 0.2s ease-in-out;
-        }
-        
+        }}
+
         /* Tabs typography */
-        .stTabs [data-baseweb="tab"] {
+        .stTabs [data-baseweb="tab"] {{
             font-weight: 600;
             font-size: 15px;
-        }
+        }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -61,8 +83,8 @@ st.markdown(
 st.markdown(
     """
     <div style="background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%); padding: 24px 32px; border-radius: 16px; color: white; margin-bottom: 24px; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.2);">
-        <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 800;">📱 Mobile Models Management</h1>
-        <p style="margin: 6px 0 0 0; color: #DBEAFE; font-size: 15px;">Enterprise dashboard for mobile catalogue, inventory tracking, and document workflows.</p>
+        <h1 style="color: white !important; margin: 0; font-size: 28px; font-weight: 800;">📱 Mobile Models Management</h1>
+        <p style="margin: 6px 0 0 0; color: #DBEAFE !important; font-size: 15px;">Enterprise dashboard for mobile catalogue, inventory tracking, and document workflows.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -104,7 +126,6 @@ def validate_pdf(uploaded_file):
     pdf_bytes = uploaded_file.getvalue()
     if not pdf_bytes.startswith(b"%PDF-"):
         return False, "The selected file does not appear to be a valid PDF."
-    # Fixed typo bounds check here
     if len(pdf_bytes) > MAX_PDF_SIZE_MB * 1024 * 1024:
         return False, f"PDF must be {MAX_PDF_SIZE_MB} MB or smaller."
     return True, pdf_bytes
@@ -125,11 +146,19 @@ view_tab, add_tab, delete_tab, file_tab, report_tab = st.tabs(
 def select_table_view():
     st.session_state["view_table"] = True
     st.session_state["view_line_chart"] = False
+    st.session_state["view_pie_chart"] = False
 
 
 def select_line_chart_view():
     st.session_state["view_table"] = False
     st.session_state["view_line_chart"] = True
+    st.session_state["view_pie_chart"] = False
+
+
+def select_pie_chart_view():
+    st.session_state["view_table"] = False
+    st.session_state["view_line_chart"] = False
+    st.session_state["view_pie_chart"] = True
 
 
 # Initialize session state flags
@@ -137,19 +166,21 @@ if "view_table" not in st.session_state:
     st.session_state["view_table"] = True
 if "view_line_chart" not in st.session_state:
     st.session_state["view_line_chart"] = False
+if "view_pie_chart" not in st.session_state:
+    st.session_state["view_pie_chart"] = False
 
 with view_tab:
     # Styled Toggle View Box Container
     st.markdown(
-        """
-        <div style="background-color: #FFFFFF; padding: 16px 20px; border-radius: 12px; border: 1px solid #E2E8F0; margin-bottom: 20px; display: flex; align-items: center;">
-            <span style="font-weight: 700; color: #1E293B; font-size: 15px; margin-right: 24px;">🎛️ Select Display Layout:</span>
+        f"""
+        <div style="background-color: {card_bg}; padding: 16px 20px; border-radius: 12px; border: 1px solid {border_color}; margin-bottom: 20px; display: flex; align-items: center;">
+            <span style="font-weight: 700; color: {text_color}; font-size: 15px; margin-right: 24px;">🎛️ Select Display Layout:</span>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    col_c1, col_c2 = st.columns(2)
+    col_c1, col_c2, col_c3 = st.columns(3)
     with col_c1:
         st.checkbox(
             "View Table Form",
@@ -158,9 +189,15 @@ with view_tab:
         )
     with col_c2:
         st.checkbox(
-            "View Bar Graph",
+            "View Line Chart (Inventory Status)",
             key="view_line_chart",
             on_change=select_line_chart_view,
+        )
+    with col_c3:
+        st.checkbox(
+            "View Pie Chart (Inventory Share)",
+            key="view_pie_chart",
+            on_change=select_pie_chart_view,
         )
 
     st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
@@ -179,7 +216,6 @@ with view_tab:
             st.info("No mobile models found in the database.")
 
         elif st.session_state["view_line_chart"]:
-            # Prepare data for horizontal multi-colored progress graph view
             chart_data = []
             for model in models:
                 device_names = model.get("device_names") or []
@@ -195,8 +231,44 @@ with view_tab:
                 max_capacity=10,
             )
 
+        elif st.session_state["view_pie_chart"]:
+            pie_data = []
+            for model in models:
+                device_names = model.get("device_names") or []
+                pie_data.append({
+                    "Model Name": model.get("name", "Unknown"),
+                    "Number of Devices": len(device_names),
+                })
+
+            pie_df = pd.DataFrame(pie_data)
+
+            st.markdown(
+                f"""
+                <div class="custom-card">
+                    <h3 style="margin-top: 0; color: {text_color};">Inventory Share Distribution</h3>
+                    <p style="color: {subtext_color}; font-size: 14px;">Proportion of available device models per company category.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            fig_pie = px.pie(
+                pie_df,
+                names="Model Name",
+                values="Number of Devices",
+                hole=0.4,
+            )
+            fig_pie.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font={"color": text_color},
+                margin={"l": 20, "r": 20, "t": 20, "b": 20},
+                legend={"title": "Models"},
+            )
+            st.plotly_chart(fig_pie, use_container_width=True)
+            st.dataframe(pie_df, use_container_width=True, hide_index=True)
+
         else:
-            # Enhanced Table view and selected-company device layout cards
             display_models = [
                 {
                     "ID": model["id"],
@@ -246,21 +318,21 @@ with view_tab:
                 if device_names:
                     for index, device_name in enumerate(device_names, start=1):
                         devices_html += (
-                            f'<div style="background-color: #F8FAFC; padding: 10px 14px; '
-                            f'border-radius: 8px; border: 1px solid #E2E8F0; margin-bottom: 8px; '
-                            f'font-size: 13.5px; font-weight: 500; color: #334155;">'
-                            f'<span style="color: #2563EB; font-weight: 600; margin-right: 8px;">#{index}</span> '
+                            f'<div style="background-color: {inner_box_bg}; padding: 10px 14px; '
+                            f'border-radius: 8px; border: 1px solid {border_color}; margin-bottom: 8px; '
+                            f'font-size: 13.5px; font-weight: 500; color: {text_color};">'
+                            f'<span style="color: #60A5FA; font-weight: 600; margin-right: 8px;">#{index}</span> '
                             f'{device_name}</div>'
                         )
                 else:
-                    devices_html = "<p style='color: #64748B; font-size: 13px;'>No device models found for this company.</p>"
+                    devices_html = f"<p style='color: {subtext_color}; font-size: 13px;'>No device models found for this company.</p>"
 
                 card_content = (
-                    f'<div style="background-color: #FFFFFF; padding: 20px; border-radius: 12px; border: 1px solid #E2E8F0; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">'
-                    f'<div style="font-size: 12px; text-transform: uppercase; font-weight: 700; color: #64748B; letter-spacing: 0.5px;">Selected Company</div>'
-                    f'<div style="font-size: 22px; font-weight: 800; color: #2563EB; margin-top: 4px; margin-bottom: 12px;">{selected_company["name"]}</div>'
-                    f'<div style="font-size: 13px; color: #64748B; margin-bottom: 14px;">Total catalog entries: <b>{len(device_names)}</b></div>'
-                    f'<hr style="border: none; border-top: 1px solid #F1F5F9; margin-bottom: 14px;" />'
+                    f'<div style="background-color: {card_bg}; padding: 20px; border-radius: 12px; border: 1px solid {border_color}; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">'
+                    f'<div style="font-size: 12px; text-transform: uppercase; font-weight: 700; color: {subtext_color}; letter-spacing: 0.5px;">Selected Company</div>'
+                    f'<div style="font-size: 22px; font-weight: 800; color: #60A5FA; margin-top: 4px; margin-bottom: 12px;">{selected_company["name"]}</div>'
+                    f'<div style="font-size: 13px; color: {subtext_color}; margin-bottom: 14px;">Total catalog entries: <b style="color: {text_color};">{len(device_names)}</b></div>'
+                    f'<hr style="border: none; border-top: 1px solid {border_color}; margin-bottom: 14px;" />'
                     f'{devices_html}'
                     f'</div>'
                 )
@@ -272,14 +344,14 @@ with view_tab:
 with add_tab:
     st.subheader("Add New Mobile Model")
     st.caption("Register a brand new mobile model entry into the core backend repository.")
-    
+
     with st.container():
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
         with st.form("add_model_form", clear_on_submit=True):
             model_id = st.number_input("Model ID", min_value=1, step=1)
             model_name = st.text_input("Model Name", max_chars=15, placeholder="e.g., SAMSUNG")
             model_price = st.number_input("Price (₹)", min_value=1, step=1)
-            
+
             st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
             submitted = st.form_submit_button("➕ Submit & Add Model", use_container_width=True)
 
@@ -310,7 +382,7 @@ with add_tab:
 with delete_tab:
     st.subheader("Delete Mobile Model")
     st.caption("Permanently remove an existing mobile model record using its unique identifier ID.")
-    
+
     with st.container():
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
         with st.form("delete_model_form"):
@@ -426,10 +498,10 @@ with report_tab:
     st.caption("Generate or download a complete compiled PDF report directly from the backend reporting engine.")
 
     st.markdown(
-        """
+        f"""
         <div class="custom-card" style="text-align: center; padding: 32px;">
-            <h3 style="color: #1E293B; margin-bottom: 8px;">Ready to Compile Report</h3>
-            <p style="color: #64748B; font-size: 14px; margin-bottom: 24px;">Click the button below to query the FastAPI reporting service and compile the latest analytics report file.</p>
+            <h3 style="color: {text_color}; margin-bottom: 8px;">Ready to Compile Report</h3>
+            <p style="color: {subtext_color}; font-size: 14px; margin-bottom: 24px;">Click the button below to query the FastAPI reporting service and compile the latest analytics report file.</p>
         """,
         unsafe_allow_html=True,
     )

@@ -51,7 +51,7 @@ print(df[["Name", "Salary"]])
 students = {
     "Name":["Ravi","Sita","Kiran","Rahul","Priya"],
     "Course":["Python","Java","Python","DevOps","Python"],
-    "Marks":[85,90,75,60,95]
+    "Marks":[85,95,75,60,95]
 }
 
 df = pd.DataFrame(students)
@@ -77,7 +77,7 @@ sort = df.sort_values("Marks")
 print(sort.tail(1)) # using descending and tail
 
 print("******************Find Highest marks using max***************")
-print(df["Marks"].max())
+print(df["Marks"].max()) # Gives us max value
 
 print("******************Find Avg marks ***************")
 print(df["Marks"].mean())
