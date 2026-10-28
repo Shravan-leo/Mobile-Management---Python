@@ -91,8 +91,8 @@ print(course_counts.to_string(index=False))
 print("******************Add Grade Column***************")
 
 # Add Grade column
-df["Grade"]  = ""
+#df["Grade"]  = ""
 #df["Grade"]  = 0
-
+df.insert(1,"Grade",None)
 print(df.to_string(index=False))
 
